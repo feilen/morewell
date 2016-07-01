@@ -5,12 +5,13 @@ import numpy as np
 import random
 import theano
 import theano.tensor as T
+import sys
+import json
 
 from glove import Corpus, Glove
 
 from scipy.stats import norm
 
-from sklearn.preprocessing import Imputer
 from lasagne import layers
 from lasagne.updates import nesterov_momentum, adagrad, adam
 from lasagne.nonlinearities import softmax, rectify, tanh
@@ -19,18 +20,21 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.utils import shuffle
 from nn_utils import make_nn, clean, vectify
 
+with open('settings.json', 'r') as settingsfile:
+    settings = json.load(settingsfile)
+
 # 5 seems to do best?
-number_components = 5
-# Include the last few messages from the same conversation, same user in train data
+number_components = settings['number_components']
+# Include the last few messages from the same conversation, same user in train data (broken)
 contextual = False
-# How many max posts previous to check for the same username
+# How many max posts previous to check for the same username (broken)
 max_context_backstep = 5
 # Drop probablity, set until train/val is stable
-drop_probability = 0.4
+drop_probability = float(settings['drop_probability'])
 
 # Bundle groups of symbols and make sure words are otherwise alone
 print("Parsing CSV log")
-myfile = open('input.csv', 'r')
+myfile = open(sys.argv[1], 'r')
 mycsv = csv.reader(myfile)
 
 # Create a reply chain map
@@ -56,25 +60,27 @@ for row in csvsequence:
 # Calculate distribution, to account for 95th percentile of messages.
 max_sentence_length = int(np.mean([len(x) for x in texts]) + (norm.ppf(0.95) * np.std([len(x) for x in texts])))
 
+print("Max sentence length: {}, put that in settings.json.".format(max_sentence_length))
+
 corpus = Corpus()
 try:
     print("Loading pretrained corpus...")
-    corpus = Corpus.load("corpus.p")
+    corpus = Corpus.load("cache/corpus.p")
 except:
     print("Training corpus...")
     corpus.fit(texts, window=max_sentence_length)
-    corpus.save("corpus.p")
+    corpus.save("cache/corpus.p")
 
 glove = Glove(no_components=number_components, learning_rate=0.05)
 try:
     print("Loading pretrained GloVe vectors...")
-    glove = Glove.load("glove.p")
+    glove = Glove.load("cache/glove.p")
 except:
     print("Training GloVe vectors...")
     # More epochs seems to make it worse
     glove.fit(corpus.matrix, epochs=30, no_threads=4, verbose=True)
     glove.add_dictionary(corpus.dictionary)
-    glove.save("glove.p")
+    glove.save("cache/glove.p")
 
 # Convert input text
 print("Vectorizing input sentences...")
@@ -116,4 +122,4 @@ with open('chat-optimized.csv', 'wb') as csvfile:
         )
         index += 1
 
-net.save_params_to("model.p.gz")
+net.save_params_to("cache/model.p")

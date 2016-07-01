@@ -2,15 +2,21 @@
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import numpy as np
+import json
 from glove import Corpus, Glove
 from nolearn.lasagne import NeuralNet
 from nn_utils import make_nn, clean, vectify
 
 import logging
 
-max_sentence_length = 22
-drop_probability = 0.4
-adminchat = -54852278
+with open('settings.json', 'r') as settingsfile:
+    settings = json.load(settingsfile)
+
+
+
+max_sentence_length = settings['max_sentence_length']
+drop_probability = float(settings['drop_probability'])
+adminchat = settings['adminchat']
 
 
 # Enable logging
@@ -21,10 +27,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 glove = Glove()
-glove = Glove.load("glove.p")
+glove = Glove.load("cache/glove.p")
 
 net = make_nn(max_sentence_length, glove.word_vectors, drop_probability)
-net.load_params_from("model.p.gz")
+net.load_params_from("cache/model.p")
 
 
 # Define a few command handlers. These usually take the two arguments bot and
@@ -51,7 +57,7 @@ def error(bot, update, error):
 
 def main():
     # Create the EventHandler and pass it your bot's token.
-    updater = Updater("194494925:AAEy49BqWvY2SbJogiQvusVCZJtb6jRK860")
+    updater = Updater(settings['bot_token'])
 
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
