@@ -1,0 +1,9 @@
+{
+    "number_components": 5,
+    "max_sentence_length": 22,
+    "drop_probability": "0.4",
+    "adminchat": -5466666652278,
+    "bot_token": "194494925:AAEy49BqWvY2SbJogiQvusVCZJtb6jRK860",
+    "ignored_moderators": ["feilen"],
+    "slurs": ["fag", "bitch", "shemale", "boipussy", "boypussy", "retard", "asshole", "nigg", "cunt", "dumbass"]
+}
