@@ -43,12 +43,18 @@ def help(bot, update):
     bot.sendMessage(update.message.chat_id, text='Help!')
 
 
-def filterforward(bot, update):
-    if update.message.chat_id != adminchat:
+def filterforward(bot, update):    
+    chat = None
+    if update.message is not None:
+        chat = update.message
+    else:
+        chat = update.edited_message
+            
+    if chat.chat_id != adminchat:            
         test = dict()
-        result = net.predict(vectify([clean(update.message.text).split()], test, glove.dictionary, max_sentence_length, False))
+        result = net.predict(vectify([clean(chat.text).split()], test, glove.dictionary, max_sentence_length, False))
         if result[0] == 1:
-            bot.forwardMessage(chat_id=adminchat, from_chat_id=update.message.chat_id, message_id=update.message.message_id)
+            bot.forwardMessage(chat_id=adminchat, from_chat_id=chat.chat_id, message_id=chat.message_id)
 
 
 def error(bot, update, error):
@@ -67,7 +73,7 @@ def main():
     #dp.addHandler(CommandHandler("help", help))
 
     # on noncommand i.e message
-    dp.addHandler(MessageHandler([Filters.text], filterforward))
+    dp.addHandler(MessageHandler([Filters.text], filterforward, allow_edited = True))
 
     # log all errors
     dp.addErrorHandler(error)
