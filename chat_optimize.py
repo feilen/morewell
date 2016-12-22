@@ -9,6 +9,8 @@ import sys
 import json
 
 from glove import Corpus, Glove
+import gensim
+from gensim import utils
 
 from scipy.stats import norm
 
@@ -18,58 +20,60 @@ from lasagne.nonlinearities import softmax, rectify, tanh
 from nolearn.lasagne import NeuralNet
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import shuffle
-from nn_utils import make_nn, clean, vectify
+from nn_utils import make_nn, vectify
 
 with open('settings.json', 'r') as settingsfile:
     settings = json.load(settingsfile)
 
+def read_double_corpus():
+    corp = gensim.corpora.WikiCorpus("cache/simplewiki.xml.bz2", dictionary={})
+
+    for text in corp.get_texts():
+        yield text
+
+    for text in texts:
+        yield text
+
+def make_filtered_dict(generating_function):
+    dictionary = gensim.corpora.Dictionary(generating_function)
+    dictionary.filter_extremes(no_below=5, no_above=0.5, keep_n=None)
+    dictionary.compactify()
+    return {v: k for k, v in dictionary.iteritems()}
+
+
 # 5 seems to do best?
 number_components = settings['number_components']
-# Include the last few messages from the same conversation, same user in train data (broken)
-contextual = False
-# How many max posts previous to check for the same username (broken)
-max_context_backstep = 5
 # Drop probablity, set until train/val is stable
 drop_probability = float(settings['drop_probability'])
 
 # Bundle groups of symbols and make sure words are otherwise alone
 print("Parsing CSV log")
-myfile = open(sys.argv[1], 'r')
-mycsv = csv.reader(myfile)
+with open(sys.argv[1], 'r') as myfile:
+    mycsv = csv.reader(myfile)
+    csvsequence = list(mycsv)
 
-# Create a reply chain map
-previous_message = dict()
-csvsequence = list(mycsv)
-for index, row in enumerate(csvsequence):
-    for jindex in (np.arange(max_context_backstep) + index + 1):
-        try:
-            if row[2] != '' and row[2] == csvsequence[jindex][2]:
-                previous_message[index] = jindex
-                break
-            else:
-                previous_message[index] = -1
-        except IndexError:
-            previous_message[index] = -1
 
 texts = []
 classes = []
 for row in csvsequence:
-    texts.append(clean(row[3]).split())
+    texts.append([token.encode('utf8') for token in utils.tokenize(row[3], lower=True, errors='ignore')])
     classes.append(row[0])
 
-# Calculate distribution, to account for 95th percentile of messages.
-max_sentence_length = int(np.mean([len(x) for x in texts]) + (norm.ppf(0.95) * np.std([len(x) for x in texts])))
-
-print("Max sentence length: {}, put that in settings.json.".format(max_sentence_length))
-
-corpus = Corpus()
 try:
+    corpus = Corpus()
     print("Loading pretrained corpus...")
     corpus = Corpus.load("cache/corpus.p")
 except:
+    corpus = Corpus(make_filtered_dict(read_double_corpus()))
     print("Training corpus...")
-    corpus.fit(texts, window=max_sentence_length)
+    corpus.fit(read_double_corpus(), ignore_missing=True)
+    print("Saving corpus...")
     corpus.save("cache/corpus.p")
+
+# Calculate distribution, to account for 95th percentile of messages.
+max_sentence_length = int(np.mean([len([y for y in x if y in corpus.dictionary]) for x in texts]) + (norm.ppf(0.95) * np.std([len(x) for x in texts])))
+
+print("Max sentence length: {}, put that in settings.json.".format(max_sentence_length))
 
 glove = Glove(no_components=number_components, learning_rate=0.05)
 try:
@@ -84,7 +88,7 @@ except:
 
 # Convert input text
 print("Vectorizing input sentences...")
-X = vectify(texts, previous_message, glove.dictionary, max_sentence_length, contextual)
+X = vectify(texts, None, glove.dictionary, max_sentence_length)
 y = np.array([x == u'1' for x in classes]).astype(np.int32)
 
 X, y, texts = X[:207458], y[:207458], texts[:207458]

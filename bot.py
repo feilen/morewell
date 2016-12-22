@@ -5,7 +5,9 @@ import numpy as np
 import json
 from glove import Corpus, Glove
 from nolearn.lasagne import NeuralNet
-from nn_utils import make_nn, clean, vectify
+from nn_utils import make_nn, vectify
+from gensim import utils
+import pprint
 
 import logging
 
@@ -42,17 +44,18 @@ def start(bot, update):
 def help(bot, update):
     bot.sendMessage(update.message.chat_id, text='Help!')
 
+def simquery(bot, update):
+    bot.sendMessage(update.message.chat_id, text='Most similar: {}'.format(pprint.pformat(glove.most_similar(update.message.text.split()[1].lower()))))
 
-def filterforward(bot, update):    
+def filterforward(bot, update):
     chat = None
     if update.message is not None:
         chat = update.message
     else:
         chat = update.edited_message
-            
-    if chat.chat_id != adminchat:            
-        test = dict()
-        result = net.predict(vectify([clean(chat.text).split()], test, glove.dictionary, max_sentence_length, False))
+
+    if chat.chat_id != adminchat:
+        result = net.predict(vectify([[token.encode('utf8') for token in utils.tokenize(chat.text, lower=True, errors='ignore')]], None, glove.dictionary, max_sentence_length))
         if result[0] == 1:
             bot.forwardMessage(chat_id=adminchat, from_chat_id=chat.chat_id, message_id=chat.message_id)
 
@@ -71,6 +74,7 @@ def main():
     # on different commands - answer in Telegram
     #dp.addHandler(CommandHandler("start", start))
     #dp.addHandler(CommandHandler("help", help))
+    dp.addHandler(CommandHandler("simquery", simquery))
 
     # on noncommand i.e message
     dp.addHandler(MessageHandler([Filters.text], filterforward, allow_edited = True))

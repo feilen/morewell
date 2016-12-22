@@ -6,19 +6,19 @@ import re
 from lasagne import layers
 from lasagne.updates import nesterov_momentum, adagrad, adam
 from lasagne.nonlinearities import softmax, rectify, tanh
+from gensim import utils
 
-regex_find = re.compile(r"([^a-z 0-9]+)")
-trimspace = re.compile(r" +")
-
-def make_nn(max_sentence_length, word_vectors, drop_probability):
+def make_nn(max_sentence_length, word_vectors, drop_probability, regress = False):
     return NeuralNet(
         layers=[
             ('input', layers.InputLayer),
             ('embed', layers.EmbeddingLayer),
             ('drop', layers.DropoutLayer),
+            #('conv1', layers.Conv1DLayer),
             ('lstm1', layers.LSTMLayer),
             ('lstm2', layers.LSTMLayer),
             ('lstm3', layers.LSTMLayer),
+            #('pool', layers.MaxPool1DLayer),
             ('output', layers.DenseLayer),
             ],
         # layers
@@ -32,53 +32,38 @@ def make_nn(max_sentence_length, word_vectors, drop_probability):
         drop_p = drop_probability,
 
         lstm1_num_units = word_vectors.shape[1],
-        #lstm1_nonlinearity = tanh,
         lstm2_num_units = word_vectors.shape[1],
-        #lstm2_nonlinearity = tanh,
         lstm3_num_units = word_vectors.shape[1],
-        #lstm3_nonlinearity = tanh,
+        #conv1_num_filters=max_sentence_length, conv1_filter_size=3,# pool_pool_size=4,
 
-        output_nonlinearity = softmax,
-        output_num_units = 2,
+        output_nonlinearity = None if regress else softmax,
+        output_num_units = 1 if regress else 2,
 
         # optimization
         update=adam,
         update_learning_rate=0.005,
 
-        regression=False,
+        regression=regress,
         max_epochs=45,
 
         verbose=1,
         )
 
-def clean(sentence):
-    return re.sub(trimspace, " ", re.sub(regex_find, r" \1 ", sentence.lower()))
-
-def vectify(sentence_array, message_lookup_dictionary, word_lookup_dictionary, max_sentence_length, contextual):
+def vectify(sentence_array, message_lookup_dictionary, word_lookup_dictionary, max_sentence_length):
     vectorized = np.zeros((len(sentence_array), max_sentence_length), dtype=np.int32)
     for index, sentence in enumerate(sentence_array):
         # Construct a list of word indexes, such the current classified message is at the end, and previous messages are in every spot leading up to it.
-        # Ex: "hi how are you ." "hi there" -> ". are you hi there"
         sentence_index = max_sentence_length
         cur_chain_message_index = index
-        while sentence_index > 0:
-            try:
-                working_sentence = sentence_array[cur_chain_message_index]
-            except IndexError:
-                break # Leave rest padded with noise
-            # Overwrite portion of sentence
-            np.put(vectorized[index], np.arange(len(working_sentence)) + (sentence_index - len(working_sentence)), [word_lookup_dictionary[word.lower()] if word.lower() in word_lookup_dictionary else 0 for word in working_sentence], mode='clip')
-            sentence_index -= len(working_sentence)
-            # Move back one message until we've filled it
-            if contextual:
-                try:
-                    cur_chain_message_index = message_lookup_dictionary[cur_chain_message_index]
-                    if cur_chain_message_index == -1:
-                        break
-                except KeyError:
-                    break # Leave rest padded with noise
-            else:
-                break
+        try:
+            working_sentence = sentence_array[cur_chain_message_index]
+        except IndexError:
+            break # Leave rest padded with noise
+        # Overwrite portion of sentence
+        current_vector= [word_lookup_dictionary[token] for token in working_sentence if token in word_lookup_dictionary]
+        np.put(vectorized[index], np.arange(len(current_vector)) + (sentence_index - len(current_vector)), current_vector, mode='clip')
+        sentence_index -= len(current_vector)
+        # Move back one message until we've filled it
 
     return vectorized
 
