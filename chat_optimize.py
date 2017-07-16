@@ -20,26 +20,10 @@ from lasagne.nonlinearities import softmax, rectify, tanh
 from nolearn.lasagne import NeuralNet
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import shuffle
-from nn_utils import make_nn, vectify
+from nn_utils import make_nn, vectify, read_double_corpus, make_filtered_dict
 
 with open('settings.json', 'r') as settingsfile:
     settings = json.load(settingsfile)
-
-def read_double_corpus():
-    corp = gensim.corpora.WikiCorpus("cache/simplewiki.xml.bz2", dictionary={})
-
-    for text in corp.get_texts():
-        yield text
-
-    for text in texts:
-        yield text
-
-def make_filtered_dict(generating_function):
-    dictionary = gensim.corpora.Dictionary(generating_function)
-    dictionary.filter_extremes(no_below=5, no_above=0.5, keep_n=None)
-    dictionary.compactify()
-    return {v: k for k, v in dictionary.iteritems()}
-
 
 # 5 seems to do best?
 number_components = settings['number_components']
@@ -51,7 +35,6 @@ print("Parsing CSV log")
 with open(sys.argv[1], 'r') as myfile:
     mycsv = csv.reader(myfile)
     csvsequence = list(mycsv)
-
 
 texts = []
 classes = []

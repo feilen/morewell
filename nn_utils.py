@@ -7,6 +7,7 @@ from lasagne import layers
 from lasagne.updates import nesterov_momentum, adagrad, adam
 from lasagne.nonlinearities import softmax, rectify, tanh
 from gensim import utils
+import gensim
 
 def make_nn(max_sentence_length, word_vectors, drop_probability, regress = False):
     return NeuralNet(
@@ -66,5 +67,20 @@ def vectify(sentence_array, message_lookup_dictionary, word_lookup_dictionary, m
         # Move back one message until we've filled it
 
     return vectorized
+
+def read_double_corpus(texts):
+    corp = gensim.corpora.WikiCorpus("cache/simplewiki.xml.bz2", dictionary={})
+
+    for text in corp.get_texts():
+        yield text
+
+    for text in texts:
+        yield text
+
+def make_filtered_dict(generating_function):
+    dictionary = gensim.corpora.Dictionary(generating_function)
+    dictionary.filter_extremes(no_below=5, no_above=0.5, keep_n=None)
+    dictionary.compactify()
+    return {v: k for k, v in dictionary.iteritems()}
 
 
